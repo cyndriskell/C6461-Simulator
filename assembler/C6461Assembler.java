@@ -67,9 +67,55 @@ class C6461Assembler {
 	}
 
 	// Check if an instruciton/directive mnemonic is valid
-	static boolean check_instruction(String mnemonic) {
+	static String check_instruction(String mnemonic) {
+		// Trim whitespace
+        mnemonic = mnemonic.trim();
+        if (mnemonic.isEmpty()) {
+            return "Error: Empty line detected, skipping";
+        }
+
+        // **Fix mnemonic splitting to properly handle spaces and commas**
+        String[] parts = mnemonic.replace(",", " ").split("\\s+");
+
+        // Check if the mnemonic has exactly 4 parts
+        if (parts.length != 4) {
+            return "Error: Instruction format incorrect -> " + mnemonic;
+        }
+
+        String opcode = C6461AssemblerOpcodes.OPCODES.get(parts[0]); // Get Opcode
+        if (opcode == null) {
+            return "Error: Invalid mnemonic " + parts[0];
+        }
+
+        try {
+            int regNum = Integer.parseInt(parts[1]);  // R register
+            int ixNum = Integer.parseInt(parts[2]);   // IX index register
+            int addressNum = Integer.parseInt(parts[3]); // Target address
+
+            // **Validate number ranges**
+            if (regNum < 0 || regNum > 3) return " : R register out of range (0-3) -> " + mnemonic;
+            if (ixNum < 0 || ixNum > 3) return "Error: IX register out of range (0-3) -> " + mnemonic;
+            if (addressNum < 0 || addressNum > 31) return "Error: Address out of range (0-31) -> " + mnemonic;
+
+            // Convert to binary format
+            String r = String.format("%2s", Integer.toBinaryString(regNum)).replace(' ', '0'); // 2-bit R
+            String ix = String.format("%2s", Integer.toBinaryString(ixNum)).replace(' ', '0'); // 2-bit IX
+            String i = "0"; // Immediate addressing (I-bit), default is 0
+            String address = String.format("%5s", Integer.toBinaryString(addressNum)).replace(' ', '0'); // 5-bit address
+
+            // Combine to form 16-bit machine code
+            String machineCode = opcode + r + ix + i + address;
+
+            // Convert to hexadecimal
+            int hexValue = Integer.parseInt(machineCode, 2);
+            String hexString = String.format("0x%04X", hexValue);
+
+            return mnemonic + " -> " + machineCode + " -> " + hexString;
+        } catch (NumberFormatException e) {
+            return "Error: Invalid number format -> " + mnemonic;
+        }
 		//TODO! check_instruction
-		return true;
+		// return true;
 	}
 
 	// Pass 1, basically assemble the program without actually doing codegen, will increment address as appropriate
