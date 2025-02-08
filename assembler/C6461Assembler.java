@@ -1,9 +1,16 @@
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileReader;
+import java.io.FileWriter;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.HashMap;
 import java.util.Vector;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+// TODO! Implement better error handling
 class C6461Assembler {
 	static final String VERSION = "v0.0.1-dev";
 
@@ -18,7 +25,7 @@ class C6461Assembler {
 			System.out.println("-v --verbose: Gives more debugging information during the assembly process");
 			System.out.println("-f --format: Specify output format, by default the format will be `binary`");
 			System.out.println("\toctal: Outputs a file in the format of:");
-			System.out.println("\t\t\"Address\\tMachine Code\\tSymbolic Representation\" for each instruction");
+			System.out.println("\t\t\"Address\\tMachine Code\\tSymbolic Representation\" for each mnemonic");
 			System.out.println("\thexadecimal: Same as `octal` but using hexadecimal instead");
 			System.out.println("\tbinary: Outputs a flat machine code binary for use with the C6461 Simulator");
 			System.out.println("\tloadfile: Outputs in the loadfile format specified in the C6461 docs");
@@ -35,7 +42,6 @@ class C6461Assembler {
 			System.err.println("An input file must be provided.\nC6461Assembler --help");
 			System.exit(1);
 		}
-
 		
 		FileReader input_file;
 		int bufSize;
@@ -53,20 +59,36 @@ class C6461Assembler {
 
 		char[] buf = new char[bufSize];
 		input_file.read(buf);
+		input_file.close();
 
 		String input_string = String.valueOf(buf);
 
 		Vector<C6461AssemblerCode> code = new Vector<>();
-		HashMap<String, Integer> labels = new HashMap<>();
-		int current_address = 0;
+		HashMap<String, Short> labels = new HashMap<>();
+		Short current_address = 0;
+		int line_num = 0;
 
 		// Pass 1
 		for (String line: input_string.split("\n")) {
-			
+			line_num++;
+			current_address = pass1_parse_labels(line, labels, current_address, line_num);
+			System.err.println(current_address);
 		}
+
+		System.err.println(labels);
+		current_address = 0;
+		line_num = 0;
+
+		// Pass 2
+		for (String line: input_string.split("\n")) {
+			pass2_assemble(line, code, labels, current_address, line_num);
+		}
+
+		// Emit
+		emit(code, options.format, options.listing, options.output);
 	}
 
-	// Check if an instruciton/directive mnemonic is valid
+	// Check if an instruction/directive mnemonic is valid
 	static String check_instruction(String mnemonic) {
 		// Trim whitespace
         mnemonic = mnemonic.trim();
@@ -118,21 +140,104 @@ class C6461Assembler {
 		// return true;
 	}
 
+	static void error(String line, String message, int line_num) {
+		System.err.println(String.format("Error: %s", message));
+		System.err.println(String.format("on line %d", line_num));
+		System.err.println(String.format("\t%s", line));
+		System.exit(1);
+	}
+
+	static boolean is_directive(String mnemonic) {
+		return mnemonic != null && (mnemonic.equals("DATA") || mnemonic.equals("LOC"));
+	}
+
+	static short handle_directive_address(String line, String mnemonic, String args, Short address, int line_num) {
+		String[] argsvs; 
+		short[] argsv;
+
+		switch (mnemonic) {
+			case "LOC":
+				if (args == null) {
+					error(line, "the LOC directive requires an argument", line_num);
+				}
+
+				argsvs = args.split(",");
+				argsv = new short[argsvs.length];
+				for (int i = 0; i < argsvs.length; i++) {
+					try {
+						argsv[i] = Short.parseShort(argsvs[i]);
+					} catch (NumberFormatException e) {
+						error(line, String.format("Invalid argument \"%s\" for LOC directive", argsvs[i]), line_num);
+					}
+				}
+				
+				if (argsv.length > 1) {
+					error(line, String.format("the LOC directive only takes one argument (%d provided)", argsv.length), line_num);
+				}
+
+				address = argsv[0];
+				break;
+			case "DATA":
+				address = (short)(address+2);
+				break;
+			default:
+				break;
+		}
+
+		return address;
+	}
+
 	// Pass 1, basically assemble the program without actually doing codegen, will increment address as appropriate
 	// 		This will allow us to identify any labels needed and look for any obvious errors
-	static boolean parse_labels(String line, HashMap<String, Integer> labels, Integer address) {
-		//TODO! parse_labels
-		return true;	
+	static short pass1_parse_labels(String line, HashMap<String, Short> labels, Short address, int line_num) {
+		// parts of a line of assembly
+		// label: mnemonic args ;comment
+		// labels can only be used with instruction mnemonics not assembler directives
+
+		// regex which matches a line of assembly (dark magic!)
+		Pattern line_pattern = Pattern.compile("(?:(?:(?<label>[A-z]+[0-9]*):\\h*)?(?:(?<mnemonic>(?:[A-Z]|[a-z])+)((?:\\h+)(?<args>(?:(?:,?[0-9]|[A-z])+)+))?\\h*)?)(?:;\\h*(?<comment>.*))?");
+		Matcher line_match = line_pattern.matcher(line);
+
+		if (line_match.matches()) {
+			String label = line_match.group("label");
+			String mnemonic = line_match.group("mnemonic");
+			mnemonic = mnemonic != null ? mnemonic.toUpperCase() : null;
+			String args = line_match.group("args");
+			String comment = line_match.group("comment");
+
+			System.err.println(String.format("label: %s, mnemonic: %s, args: %s, comment: %s",
+				label,
+				mnemonic,
+				args,
+				comment
+			));
+
+			if (is_directive(mnemonic)) {
+				if (label != null) {
+					error(line, "Labels cannot be used with assembler directives.", line_num);
+				}
+				
+				address = handle_directive_address(line, mnemonic, args, address, line_num);
+				return address;
+			} else if (mnemonic != null) {
+				if (label != null) {
+					labels.put(label, address);
+				}
+				address = (short)(address+2);
+			}
+		}		
+
+		return address;	
 	}
 
 	// Pass 2, assemble the program for real this time, will push each chunk of generated code to the `code` vector which will be used in the emit stage
-	static boolean assemble(String line, Vector<C6461AssemblerCode> code, HashMap<String, Integer> labels, Integer address) {
+	static boolean pass2_assemble(String line, Vector<C6461AssemblerCode> code, HashMap<String, Short> labels, Short address, int line_num) {
 		//TODO! assemble
 		return true;
 	}
 
 	// Emit stage, use the generated code, desired output format, whether or not we want a listing file generated, and finally the output file name
-	static boolean emit(Vector<C6461AssemblerCode> code, C6461AssemblerFormat format, boolean listing, String filename) {
+	static boolean emit(Vector<C6461AssemblerCode> code, C6461AssemblerFormat format, boolean listing, String filename) throws Exception {
 		File outfile = new File(filename);
 		File listfile = new File(filename+".list");
 		boolean result = false;
@@ -161,20 +266,72 @@ class C6461Assembler {
 	}
 
 	// Emit flat binary to outfile
-	static boolean emit_binary(Vector<C6461AssemblerCode> code, File outfile) {
-		//TODO! emit_binary
+	static boolean emit_binary(Vector<C6461AssemblerCode> code, File outfile) throws Exception {
+		FileOutputStream outstream = new FileOutputStream(outfile);
+		short max_addr = code.stream().filter((a) -> {return !a.comment_only;}).<Short>reduce((short)0, (max, code_chunk) -> {if(code_chunk.address > max) {max = code_chunk.address;} return max;}, (a, b) -> {return 0;});
+		ByteBuffer buffer = ByteBuffer.allocate(max_addr+2);
+	    // We assume that the C6461 architecture is little-endian
+		buffer.order(ByteOrder.LITTLE_ENDIAN);
+		for (C6461AssemblerCode code_chunk : code) {
+			if (code_chunk.comment_only) {
+				continue;
+			}
+
+			buffer.putShort(code_chunk.address, code_chunk.code);
+		}
+		
+		outstream.write(buffer.array());
+		outstream.close();
 		return true;
 	}
 
 	// Emit 'loadfile' binary format
-	static boolean emit_loadfile(Vector<C6461AssemblerCode> code, File outfile) {
-		//TODO! emit_loadfile
+	static boolean emit_loadfile(Vector<C6461AssemblerCode> code, File outfile) throws Exception {
+		FileWriter outwriter = new FileWriter(outfile);
+		for (C6461AssemblerCode code_chunk : code) {
+			if (code_chunk.comment_only) {
+				continue;
+			}
+			outwriter.write(String.format("%06o    %06o\n", code_chunk.address, code_chunk.code));
+		}
+		outwriter.close();
 		return true;
 	}
 
 	// Emit listing file
-	static boolean emit_listing(Vector<C6461AssemblerCode> code, C6461AssemblerFormat format, File listfile) {
-		//TODO! emit_listing
+	static boolean emit_listing(Vector<C6461AssemblerCode> code, C6461AssemblerFormat format, File listfile) throws Exception {
+		FileWriter outwriter = new FileWriter(listfile);
+		for (C6461AssemblerCode code_chunk : code) {
+			// Output format is:
+			// address    code label   mnemonic  args        comment
+			// 000000    000000 Lab:   LDA  0,0,0            ;test
+			//
+			StringBuilder argsstrb;
+			if (code_chunk.args == null) {
+				argsstrb = null;
+			} else {
+				argsstrb = new StringBuilder();
+				for (String arg : code_chunk.args) {
+					argsstrb.append(arg);
+					argsstrb.append(",");
+				}
+
+				argsstrb.deleteCharAt(argsstrb.length()-1);
+			}
+
+
+
+			outwriter.write(String.format("%6s    %6s %6s   %4s  %-12s        %s\n", 
+				code_chunk.address != null ? format == C6461AssemblerFormat.HEXADECIMAL ? String.format("%06x", code_chunk.address) : String.format("%06o", code_chunk.address) : "      ",
+				code_chunk.code != null ? format == C6461AssemblerFormat.HEXADECIMAL ? String.format("%06x", code_chunk.code) : String.format("%06o", code_chunk.code) : "      ",
+				code_chunk.label != null ? code_chunk.label+":" : "",
+				code_chunk.mnemonic != null ? code_chunk.mnemonic : "",
+				code_chunk.args != null ? argsstrb : "",
+				code_chunk.comment != null ? ";"+code_chunk.comment : ""
+			));
+		}
+
+		outwriter.close();
 		return true;
 	}
 }

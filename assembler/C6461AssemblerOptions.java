@@ -41,8 +41,9 @@ public class C6461AssemblerOptions {
 								case "binary":
 									options.format = C6461AssemblerFormat.BINARY;
 									break;
-								case "text":
+								case "loadfile":
 									options.format = C6461AssemblerFormat.LOADFILE;
+									break;
 								default:
 									System.err.println("Unknown format: " + formatarg + "\nC6461Assembler --help");
 									System.exit(1);
@@ -90,6 +91,9 @@ public class C6461AssemblerOptions {
 									break;
 								case "binary":
 									options.format = C6461AssemblerFormat.BINARY;
+									break;
+								case "loadfile":
+									options.format = C6461AssemblerFormat.LOADFILE;
 									break;
 								default:
 									System.err.println("Unknown format: " + formatarg + "\nC6461Assembler --help");
