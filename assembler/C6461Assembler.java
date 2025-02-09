@@ -12,7 +12,7 @@ import java.util.regex.Pattern;
 
 // TODO! Implement better error handling
 class C6461Assembler {
-	static final String VERSION = "v0.0.1-dev";
+	static final String VERSION = "v0.0.2-dev";
 
 	public static void main(String args[]) throws Exception {
 		//System.out.println("C6461Assembler " + VERSION);
@@ -72,72 +72,19 @@ class C6461Assembler {
 		for (String line: input_string.split("\n")) {
 			line_num++;
 			current_address = pass1_parse_labels(line, labels, current_address, line_num);
-			System.err.println(current_address);
 		}
 
-		System.err.println(labels);
 		current_address = 0;
 		line_num = 0;
 
 		// Pass 2
 		for (String line: input_string.split("\n")) {
-			pass2_assemble(line, code, labels, current_address, line_num);
+			line_num++;
+			current_address = pass2_assemble(line, code, labels, current_address, line_num);
 		}
 
 		// Emit
 		emit(code, options.format, options.listing, options.output);
-	}
-
-	// Check if an instruction/directive mnemonic is valid
-	static String check_instruction(String mnemonic) {
-		// Trim whitespace
-        mnemonic = mnemonic.trim();
-        if (mnemonic.isEmpty()) {
-            return "Error: Empty line detected, skipping";
-        }
-
-        // **Fix mnemonic splitting to properly handle spaces and commas**
-        String[] parts = mnemonic.replace(",", " ").split("\\s+");
-
-        // Check if the mnemonic has exactly 4 parts
-        if (parts.length != 4) {
-            return "Error: Instruction format incorrect -> " + mnemonic;
-        }
-
-        String opcode = C6461AssemblerOpcodes.OPCODES.get(parts[0]); // Get Opcode
-        if (opcode == null) {
-            return "Error: Invalid mnemonic " + parts[0];
-        }
-
-        try {
-            int regNum = Integer.parseInt(parts[1]);  // R register
-            int ixNum = Integer.parseInt(parts[2]);   // IX index register
-            int addressNum = Integer.parseInt(parts[3]); // Target address
-
-            // **Validate number ranges**
-            if (regNum < 0 || regNum > 3) return " : R register out of range (0-3) -> " + mnemonic;
-            if (ixNum < 0 || ixNum > 3) return "Error: IX register out of range (0-3) -> " + mnemonic;
-            if (addressNum < 0 || addressNum > 31) return "Error: Address out of range (0-31) -> " + mnemonic;
-
-            // Convert to binary format
-            String r = String.format("%2s", Integer.toBinaryString(regNum)).replace(' ', '0'); // 2-bit R
-            String ix = String.format("%2s", Integer.toBinaryString(ixNum)).replace(' ', '0'); // 2-bit IX
-            String i = "0"; // Immediate addressing (I-bit), default is 0
-            String address = String.format("%5s", Integer.toBinaryString(addressNum)).replace(' ', '0'); // 5-bit address
-
-            // Combine to form 16-bit machine code
-            String machineCode = opcode + r + ix + i + address;
-
-            // Convert to hexadecimal
-            int hexValue = Integer.parseInt(machineCode, 2);
-            String hexString = String.format("0x%04X", hexValue);
-
-            return mnemonic + " -> " + machineCode + " -> " + hexString;
-        } catch (NumberFormatException e) {
-            return "Error: Invalid number format -> " + mnemonic;
-        }
-		//TODO! check_instruction
-		// return true;
 	}
 
 	static void error(String line, String message, int line_num) {
@@ -167,7 +114,7 @@ class C6461Assembler {
 					try {
 						argsv[i] = Short.parseShort(argsvs[i]);
 					} catch (NumberFormatException e) {
-						error(line, String.format("Invalid argument \"%s\" for LOC directive", argsvs[i]), line_num);
+						error(line, String.format("Invalid argument \"%s\" for LOC directive (labels cannot be used with LOC)", argsvs[i]), line_num);
 					}
 				}
 				
@@ -178,7 +125,7 @@ class C6461Assembler {
 				address = argsv[0];
 				break;
 			case "DATA":
-				address = (short)(address+2);
+				address = (short)(address+1);
 				break;
 			default:
 				break;
@@ -187,8 +134,86 @@ class C6461Assembler {
 		return address;
 	}
 
+	static short[] apply_labels(String line, String[] args, HashMap<String, Short> labels, int line_num) {
+		short[] argsv;
+
+		argsv = new short[args.length];
+		
+		for (int i = 0; i < args.length; i++) {
+			try {
+				argsv[i] = Short.parseShort(args[i]);
+			} catch (NumberFormatException e) {
+				Short label_value = labels.get(args[i]);
+				if (label_value == null) {
+					error(line, String.format("Unknown label \"%s\"", args[i]), line_num);
+				}
+				
+				argsv[i] = label_value;
+			}
+		}
+
+		return argsv;
+	}
+
+	static short handle_directive(String line, String mnemonic, HashMap<String, Short> labels, Vector<C6461AssemblerCode> code, String[] args, String comment, Short address, int line_num) {
+		short[] argsv;
+		C6461AssemblerCode _code;
+
+		switch (mnemonic) {
+			case "LOC":
+				if (args == null) {
+					error(line, "the LOC directive requires an argument", line_num);
+				}
+
+				argsv = apply_labels(line, args, labels, line_num);
+
+				_code = new C6461AssemblerCode();
+				
+				_code.mnemonic = mnemonic;
+				_code.args = args;
+				_code.comment = comment;
+
+				code.add(_code);
+				
+				if (argsv.length > 1) {
+					error(line, String.format("the LOC directive only takes one argument (%d provided)", argsv.length), line_num);
+				}
+
+				address = argsv[0];
+				break;
+			case "DATA":
+				if (args == null) {
+					error(line, "the DATA directive requires an argument", line_num);
+				}
+
+				argsv = apply_labels(line, args, labels, line_num);
+
+				if (argsv.length > 1) {
+					error(line, String.format("the DATA directive only takes one argument (%d provided)", argsv.length), line_num);
+				}
+
+				_code = new C6461AssemblerCode();
+
+				_code.address = address;
+				_code.mnemonic = mnemonic;
+				_code.args = args;
+				_code.code = argsv[0];
+				_code.comment = comment;
+
+				code.add(_code);				
+
+				address = (short)(address+1);
+				break;
+			default:
+				break;
+			}
+
+			return address;
+	}
+
 	// Pass 1, basically assemble the program without actually doing codegen, will increment address as appropriate
 	// 		This will allow us to identify any labels needed and look for any obvious errors
+	@SuppressWarnings("unused")
 	static short pass1_parse_labels(String line, HashMap<String, Short> labels, Short address, int line_num) {
 		// parts of a line of assembly
 		// label: mnemonic args ;comment
@@ -205,12 +230,12 @@ class C6461Assembler {
 			String args = line_match.group("args");
 			String comment = line_match.group("comment");
 
-			System.err.println(String.format("label: %s, mnemonic: %s, args: %s, comment: %s",
-				label,
-				mnemonic,
-				args,
-				comment
-			));
+			// System.err.println(String.format("label: %s, mnemonic: %s, args: %s, comment: %s",
+			// 	label,
+			// 	mnemonic,
+			// 	args,
+			// 	comment
+			// ));
 
 			if (is_directive(mnemonic)) {
 				if (label != null) {
@@ -223,17 +248,269 @@ class C6461Assembler {
 				if (label != null) {
 					labels.put(label, address);
 				}
-				address = (short)(address+2);
+				address = (short)(address+1);
 			}
 		}		
 
 		return address;	
 	}
 
+	static short handle_load_store(String line, String mnemonic, String[] args, HashMap<String, Short> labels, int line_num, boolean with_reg) {
+		// LOAD_STORE Instruction Type
+		// Opcode	R	IX	I	Addr
+		// 0-5		6/7 8/9 10	11-15
+
+		final short F_OPCODE = 10;
+		final short F_REG 	 = 8;
+		final short F_IDX 	 = 6;
+		final short F_IND 	 = 5;
+		final short F_ADDR 	 = 0;
+
+		short[] argsv = apply_labels(line, args, labels, line_num);
+		short code = (short)(C6461AssemblerOpcodes.OPCODES.get(mnemonic) << F_OPCODE);
+
+		if (with_reg) {
+			// with indirect
+			if (argsv.length == 4) {
+				code |= argsv[0] << F_REG;
+				code |= argsv[1] << F_IDX;
+				code |= argsv[2] << F_ADDR;
+				code |= argsv[3] << F_IND;
+			} else if (argsv.length == 3) {
+				code |= argsv[0] << F_REG;
+				code |= argsv[1] << F_IDX;
+				code |= argsv[2] << F_ADDR;
+			} else {
+				error(line, String.format("incorrect number of arguments for instruction \"%s\"; expected 3/4 (got %d)", mnemonic, argsv.length), line_num);
+			} 
+		} else {
+			// with indirect
+			if (argsv.length == 3) {
+				code |= argsv[0] << F_IDX;
+				code |= argsv[1] << F_ADDR;
+				code |= argsv[2] << F_IND;
+			} else if (argsv.length == 2) {
+				code |= argsv[0] << F_IDX;
+				code |= argsv[1] << F_ADDR;
+			} else {
+				error(line, String.format("incorrect number of arguments for instruction \"%s\"; expected 2/3 (got %d)", mnemonic, argsv.length), line_num);
+			}
+		}	
+
+		return code;
+	}
+
+	static short handle_immediate(String line, String mnemonic, String[] args, HashMap<String, Short> labels, int line_num, boolean with_reg) {
+		// IMMEDIATE Instruction Type
+		// Opcode	R			Immediate
+		// 0-5		6/7  		11-15
+		
+		final short F_OPCODE = 10;
+		final short F_REG	 = 8;
+		final short F_IMM   = 0;
+
+		short[] argsv = apply_labels(line, args, labels, line_num);
+		short code = (short)(C6461AssemblerOpcodes.OPCODES.get(mnemonic) << F_OPCODE);
+
+		if (with_reg) {
+			if (argsv.length == 2) {
+				code |= argsv[0] << F_REG;
+				code |= argsv[1] << F_IMM;
+			} else {
+				error(line, String.format("incorrect number of arguments for instruction \"%s\"; expected 2 (got %d)", mnemonic, argsv.length), line_num);
+			}
+		} else {
+			if (argsv.length == 1) {
+				code |= argsv[0] << F_IMM;
+			} else if (args.length == 0) {}
+			else {
+				error(line, String.format("incorrect number of arguments for instruction \"%s\"; expected 0/1 (got %d)", mnemonic, argsv.length), line_num);
+			}
+		}
+		
+		return code;
+	}
+
+	static short handle_reg_reg(String line, String mnemonic, String[] args, HashMap<String, Short> labels, int line_num) {
+		// REG_REG Instruction Type
+		// Opcode	Rx		Ry
+		// 0-5		6/7 	8/9
+
+		final short F_OPCODE = 10;
+		final short F_REGX	 = 8;
+		final short F_REGY	 = 6;
+
+		short[] argsv = apply_labels(line, args, labels, line_num);
+		short code = (short)(C6461AssemblerOpcodes.OPCODES.get(mnemonic) << F_OPCODE);
+
+		if (argsv.length != 2) {
+			error(line, String.format("incorrect number of arguements for instruction \"%s\"; expected 2 (got %d)", mnemonic, argsv.length), line_num);
+		}
+
+		code |= argsv[0] << F_REGX;
+		code |= argsv[1] << F_REGY;
+
+
+		return code;
+	}
+
+	static short handle_reg(String line, String mnemonic, String[] args, HashMap<String, Short> labels, int line_num) {
+		// REG Instruction Type
+		// Opcode	Rx
+		// 0-5		6/7
+
+		final short F_OPCODE = 10;
+		final short F_REGX	 = 8;
+		
+		short[] argsv = apply_labels(line, args, labels, line_num);
+		short code = (short)(C6461AssemblerOpcodes.OPCODES.get(mnemonic) << F_OPCODE);
+
+		if (argsv.length != 1) {
+			error(line, String.format("incorrect number of arguements for instruction \"%s\"; expected 1 (got %d)", mnemonic, argsv.length), line_num);
+		}
+
+		code |= argsv[0] << F_REGX;
+
+		return code;
+	}
+
+	static short handle_shift_rotate(String line, String mnemonic, String[] args, HashMap<String, Short> labels, int line_num) {
+		// SHIFT_ROTATE Instruction Type
+		// Opcode	R		AL	LR	Count
+		// 0-5		6/7		8	9	12-15
+
+		final short F_OPCODE = 10;
+		final short F_REG 	 = 8;
+		final short F_AL	 = 7;
+		final short F_LR	 = 6;
+		final short F_COUNT	 = 0;
+
+		short[] argsv = apply_labels(line, args, labels, line_num);
+		short code = (short)(C6461AssemblerOpcodes.OPCODES.get(mnemonic) << F_OPCODE);
+		
+		if (argsv.length != 4) {
+			error(line, String.format("incorrect number of arguements for instruction \"%s\"; expected 4 (got %d)", mnemonic, argsv.length), line_num);
+		}
+
+		code |= argsv[0] << F_REG;
+		code |= argsv[1] << F_COUNT;
+		code |= argsv[2] << F_LR;
+		code |= argsv[3] << F_AL;
+
+		return code;
+	}
+
+	static short handle_floating(String line, String mnemonic, String[] args, HashMap<String, Short> labels, int line_num) {
+		// FLOATING Instruction Type
+		// Opcode	FR		IX		Indirect	Address
+		// 0-5		6/7		8/9		10			11-15
+
+		final short F_OPCODE = 10;
+		final short F_REG 	 = 8;
+		final short F_IDX 	 = 6;
+		final short F_IND 	 = 5;
+		final short F_ADDR 	 = 0;
+
+		short[] argsv = apply_labels(line, args, labels, line_num);
+		short code = (short)(C6461AssemblerOpcodes.OPCODES.get(mnemonic) << F_OPCODE);
+
+		// with indirect
+		if (argsv.length == 4) {
+			code |= argsv[0] << F_REG;
+			code |= argsv[1] << F_IDX;
+			code |= argsv[2] << F_ADDR;
+			code |= argsv[3] << F_IND;
+		} else if (argsv.length == 3) {
+			code |= argsv[0] << F_REG;
+			code |= argsv[1] << F_IDX;
+			code |= argsv[2] << F_ADDR;
+		} else {
+			error(line, String.format("incorrect number of arguments for instruction \"%s\"; expected 3/4 (got %d)", mnemonic, argsv.length), line_num);
+		} 
+
+		return code;
+	}
+
 	// Pass 2, assemble the program for real this time, will push each chunk of generated code to the `code` vector which will be used in the emit stage
-	static boolean pass2_assemble(String line, Vector<C6461AssemblerCode> code, HashMap<String, Short> labels, Short address, int line_num) {
-		//TODO! assemble
-		return true;
+	static short pass2_assemble(String line, Vector<C6461AssemblerCode> code, HashMap<String, Short> labels, Short address, int line_num) {
+		// regex which matches a line of assembly (dark magic!)
+		Pattern line_pattern = Pattern.compile("(?:(?:(?<label>[A-z]+[0-9]*):\\h*)?(?:(?<mnemonic>(?:[A-Z]|[a-z])+)((?:\\h+)(?<args>(?:(?:,?[0-9]|[A-z])+)+))?\\h*)?)(?:;\\h*(?<comment>.*))?");
+		Matcher line_match = line_pattern.matcher(line);
+
+		if (line_match.matches()) {
+			
+			String label = line_match.group("label");
+			String mnemonic = line_match.group("mnemonic");
+			mnemonic = mnemonic != null ? mnemonic.toUpperCase() : null;
+			String _args = line_match.group("args");
+			String[] args = _args != null ? _args.split(",") : new String[0];
+			String comment = line_match.group("comment");
+			Short _code = null;
+			Short opcode;
+
+			C6461AssemblerCode assembled = new C6461AssemblerCode();
+			assembled.label = label;
+			assembled.address = address;
+			assembled.mnemonic = mnemonic;
+			assembled.args = args;
+			assembled.comment = comment;
+
+			if (mnemonic != null) {
+				if (is_directive(mnemonic)) {
+					address = handle_directive(line, mnemonic, labels, code, args, comment, address, line_num);
+					return address;
+				}
+
+				opcode = C6461AssemblerOpcodes.OPCODES.get(mnemonic);
+				if (opcode == null) {
+					error(line, String.format("Unknown instruction %s", mnemonic), line_num);
+				}
+
+				assembled.opcode = opcode;
+
+				switch (C6461AssemblerOpTypes.TYPES.get(mnemonic)) {
+					case C6461AssemblerOpType.LOAD_STORE:
+						_code = handle_load_store(line, mnemonic, args, labels, line_num, true);
+						break;
+					case C6461AssemblerOpType.LOAD_STORE_IDX:
+						_code = handle_load_store(line, mnemonic, args, labels, line_num, false);
+						break;
+					case C6461AssemblerOpType.IMMEDIATE:
+						_code = handle_immediate(line, mnemonic, args, labels, line_num, false);
+						break;
+					case C6461AssemblerOpType.REG_IMM:
+						_code = handle_immediate(line, mnemonic, args, labels, line_num, true);
+						break;
+					case C6461AssemblerOpType.REG_REG:
+						_code = handle_reg_reg(line, mnemonic, args, labels, line_num);
+						break;
+					case C6461AssemblerOpType.REG:
+						_code = handle_reg(line, mnemonic, args, labels, line_num);
+						break;
+					case C6461AssemblerOpType.SHIFT_ROTATE:
+						_code = handle_shift_rotate(line, mnemonic, args, labels, line_num);
+						break;
+					case C6461AssemblerOpType.FLOATING:
+						_code = handle_floating(line, mnemonic, args, labels, line_num);
+						break;
+					case C6461AssemblerOpType.HALT:
+						_code = 0;
+						break;
+					default:
+						error(line, String.format("Unknown OpType \"%s\"", C6461AssemblerOpTypes.TYPES.get(mnemonic)), line_num);
+				}
+
+				address = (short)(address+1);
+			} else {
+				assembled.address = null;
+				assembled.comment_only = true;
+			}
+
+			assembled.code = _code;
+
+			code.add(assembled);
+		}
+		return address;
 	}
 
 	// Emit stage, use the generated code, desired output format, whether or not we want a listing file generated, and finally the output file name
@@ -268,16 +545,16 @@ class C6461Assembler {
 	// Emit flat binary to outfile
 	static boolean emit_binary(Vector<C6461AssemblerCode> code, File outfile) throws Exception {
 		FileOutputStream outstream = new FileOutputStream(outfile);
-		short max_addr = code.stream().filter((a) -> {return !a.comment_only;}).<Short>reduce((short)0, (max, code_chunk) -> {if(code_chunk.address > max) {max = code_chunk.address;} return max;}, (a, b) -> {return 0;});
-		ByteBuffer buffer = ByteBuffer.allocate(max_addr+2);
+		short max_addr = code.stream().filter((a) -> {return a.address != null;}).<Short>reduce((short)0, (max, code_chunk) -> {if(code_chunk.address > max) {max = code_chunk.address;} return max;}, (a, b) -> {return 0;});
+		ByteBuffer buffer = ByteBuffer.allocate(max_addr*2+2);
 	    // We assume that the C6461 architecture is little-endian
 		buffer.order(ByteOrder.LITTLE_ENDIAN);
 		for (C6461AssemblerCode code_chunk : code) {
-			if (code_chunk.comment_only) {
+			if (code_chunk.comment_only || code_chunk.address == null) {
 				continue;
 			}
 
-			buffer.putShort(code_chunk.address, code_chunk.code);
+			buffer.putShort(code_chunk.address*2, code_chunk.code);
 		}
 		
 		outstream.write(buffer.array());
@@ -289,7 +566,7 @@ class C6461Assembler {
 	static boolean emit_loadfile(Vector<C6461AssemblerCode> code, File outfile) throws Exception {
 		FileWriter outwriter = new FileWriter(outfile);
 		for (C6461AssemblerCode code_chunk : code) {
-			if (code_chunk.comment_only) {
+			if (code_chunk.comment_only || code_chunk.address == null) {
 				continue;
 			}
 			outwriter.write(String.format("%06o    %06o\n", code_chunk.address, code_chunk.code));
@@ -307,7 +584,7 @@ class C6461Assembler {
 			// 000000    000000 Lab:   LDA  0,0,0            ;test
 			//
 			StringBuilder argsstrb;
-			if (code_chunk.args == null) {
+			if (code_chunk.args.length == 0) {
 				argsstrb = null;
 			} else {
 				argsstrb = new StringBuilder();
@@ -321,12 +598,12 @@ class C6461Assembler {
 
 
 
-			outwriter.write(String.format("%6s    %6s %6s   %4s  %-12s        %s\n", 
+			outwriter.write(String.format("%6s    %6s %6s   %-4s  %-12s        %s\n", 
 				code_chunk.address != null ? format == C6461AssemblerFormat.HEXADECIMAL ? String.format("%06x", code_chunk.address) : String.format("%06o", code_chunk.address) : "      ",
 				code_chunk.code != null ? format == C6461AssemblerFormat.HEXADECIMAL ? String.format("%06x", code_chunk.code) : String.format("%06o", code_chunk.code) : "      ",
 				code_chunk.label != null ? code_chunk.label+":" : "",
 				code_chunk.mnemonic != null ? code_chunk.mnemonic : "",
-				code_chunk.args != null ? argsstrb : "",
+				code_chunk.args.length != 0 ? argsstrb : "",
 				code_chunk.comment != null ? ";"+code_chunk.comment : ""
 			));
 		}

@@ -10,5 +10,11 @@ if [[ $1 == "build" ]]; then
 fi
 
 if [[ $1 == "clean" ]]; then
-    rm {.,*}/*.class
+    rm {.,*}/*.{class,jar} 2>/dev/null
+    rm *out* 2>/dev/null
+fi
+
+if [[ $1 == "package" ]]; then
+    ./build.sh build
+    jar --create --file C6461Assembler.jar --main-class C6461Assembler {.,*}/*.class
 fi
