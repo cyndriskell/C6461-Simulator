@@ -20,6 +20,8 @@ C6461Assembler [-hvVl] [-f _format_] [-o _out_file_] _source_file_
 
 &nbsp;&nbsp;`binary`: Outputs a flat machine code binary for use with the C6461 Simulator
 
+&nbsp;&nbsp;`loadfile`: Outputs in the loadfile format specified in the C6461 docs
+
 `-l --listing`: Generate a listing file in the `octal` format
 
 `-o --output`: Specifies output filename, by default the name will be `a.out`

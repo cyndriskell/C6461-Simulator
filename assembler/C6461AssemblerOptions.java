@@ -65,56 +65,58 @@ public class C6461AssemblerOptions {
 							System.exit(1);
 					}
 				} else {
-					switch (arg.substring(1)) {
-						case "h":
-							options.help = true;
-							break;
-						case "V":
-							options.version = true;
-							break;
-						case "v":
-							options.verbose = true;
-							break;
-						case "f":
-							if(i+1 >= args.length) {
-								System.err.println("format requires an argument" + "\nC6461Assembler --help");
-								System.exit(1);
-							}
-							i++;
-							String formatarg = args[i];
-							switch (formatarg) {
-								case "octal":
-									options.format = C6461AssemblerFormat.OCTAL;
-									break;
-								case "hexadecimal":
-									options.format = C6461AssemblerFormat.HEXADECIMAL;
-									break;
-								case "binary":
-									options.format = C6461AssemblerFormat.BINARY;
-									break;
-								case "loadfile":
-									options.format = C6461AssemblerFormat.LOADFILE;
-									break;
-								default:
-									System.err.println("Unknown format: " + formatarg + "\nC6461Assembler --help");
+					for (char c : arg.substring(1).toCharArray()) {
+						switch (c) {
+							case 'h':
+								options.help = true;
+								break;
+							case 'V':
+								options.version = true;
+								break;
+							case 'v':
+								options.verbose = true;
+								break;
+							case 'f':
+								if(i+1 >= args.length) {
+									System.err.println("format requires an argument" + "\nC6461Assembler --help");
 									System.exit(1);
-							}
-							break;
-						case "l":
-							options.listing = true;
-							break;
-						case "o":
-							if(i+1 >= args.length) {
-								System.err.println("output requires an argument" + "\nC6461Assembler --help");
+								}
+								i++;
+								String formatarg = args[i];
+								switch (formatarg) {
+									case "octal":
+										options.format = C6461AssemblerFormat.OCTAL;
+										break;
+									case "hexadecimal":
+										options.format = C6461AssemblerFormat.HEXADECIMAL;
+										break;
+									case "binary":
+										options.format = C6461AssemblerFormat.BINARY;
+										break;
+									case "loadfile":
+										options.format = C6461AssemblerFormat.LOADFILE;
+										break;
+									default:
+										System.err.println("Unknown format: " + formatarg + "\nC6461Assembler --help");
+										System.exit(1);
+								}
+								break;
+							case 'l':
+								options.listing = true;
+								break;
+							case 'o':
+								if(i+1 >= args.length) {
+									System.err.println("output requires an argument" + "\nC6461Assembler --help");
+									System.exit(1);
+								}
+								i++;
+								options.output = args[i];
+								break;
+							default:
+								System.err.println("Unknown option: " + arg.substring(1) + "\nC6461Assembler --help");
 								System.exit(1);
 							}
-							i++;
-							options.output = args[i];
-							break;
-						default:
-							System.err.println("Unknown option: " + arg.substring(1) + "\nC6461Assembler --help");
-							System.exit(1);
-						}
+					}
 				}
 			} else {
 				options.input = args[i];

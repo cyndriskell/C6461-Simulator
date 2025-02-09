@@ -15,7 +15,6 @@ class C6461Assembler {
 	static final String VERSION = "v0.0.2-dev";
 
 	public static void main(String args[]) throws Exception {
-		//System.out.println("C6461Assembler " + VERSION);
 		C6461AssemblerOptions options = C6461AssemblerOptions.from_args(args);
  
 		if(options.help) {
