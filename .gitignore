@@ -25,3 +25,12 @@ replay_pid*
 
 # VSCode files
 .vscode
+/.idea/.gitignore
+/out/production/C6461-Simulator/build.sh
+/C6461-Simulator.iml
+/out/production/C6461-Simulator/Design.md
+/out/production/C6461-Simulator/example.S
+/.idea/misc.xml
+/.idea/modules.xml
+/out/production/C6461-Simulator/README.md
+/.idea/vcs.xml
