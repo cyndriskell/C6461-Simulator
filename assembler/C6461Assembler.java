@@ -544,8 +544,7 @@ class C6461Assembler {
 	// Emit flat binary to outfile
 	static boolean emit_binary(Vector<C6461AssemblerCode> code, File outfile) throws Exception {
 		FileOutputStream outstream = new FileOutputStream(outfile);
-		short max_addr = code.stream().filter((a) -> {return a.address != null;}).<Short>reduce((short)0, (max, code_chunk) -> {if(code_chunk.address > max) {max = code_chunk.address;} return max;}, (a, b) -> {return 0;});
-		ByteBuffer buffer = ByteBuffer.allocate(max_addr*2+2);
+		ByteBuffer buffer = ByteBuffer.allocate(2048*2);
 	    // We assume that the C6461 architecture is little-endian
 		buffer.order(ByteOrder.LITTLE_ENDIAN);
 		for (C6461AssemblerCode code_chunk : code) {
