@@ -34,3 +34,5 @@ replay_pid*
 /.idea/modules.xml
 /out/production/C6461-Simulator/README.md
 /.idea/vcs.xml
+
+.DS_Store

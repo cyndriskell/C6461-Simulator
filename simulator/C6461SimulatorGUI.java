@@ -2,9 +2,9 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-public class Interface extends JFrame {
+public class C6461SimulatorGUI extends JFrame {
 
-    public Interface() {
+    public C6461SimulatorGUI() {
         setTitle("CSCI 6461 Machine Simulator");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1200, 800);
@@ -169,6 +169,6 @@ public class Interface extends JFrame {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        new Interface();
+        new C6461SimulatorGUI();
     }
 }
