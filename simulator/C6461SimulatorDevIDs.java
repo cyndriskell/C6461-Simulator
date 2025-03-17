@@ -1,0 +1,33 @@
+public class C6461SimulatorDevIDs {
+    public static final short KEYBOARD        = 0;
+    public static final short PRINTER         = 1;
+    public static final short CARD_READER     = 2;
+    public static final short CONSOLEGP_1     = 0;
+    public static final short CONSOLEGP_2     = 0;
+    public static final short CONSOLEGP_3     = 0;
+    public static final short CONSOLEGP_4     = 0;
+    public static final short CONSOLEGP_5     = 0;
+    public static final short CONSOLEGP_6     = 0;
+    public static final short CONSOLEGP_7     = 0;
+    public static final short CONSOLEGP_8     = 0;
+    public static final short CONSOLEGP_9     = 0;
+    public static final short CONSOLEGP_10    = 0;
+    public static final short CONSOLEGP_11    = 0;
+    public static final short CONSOLEGP_12    = 0;
+    public static final short CONSOLEGP_13    = 0;
+    public static final short CONSOLEGP_14    = 0;
+    public static final short CONSOLEGP_15    = 0;
+    public static final short CONSOLEGP_16    = 0;
+    public static final short CONSOLEGP_17    = 0;
+    public static final short CONSOLEGP_18    = 0;
+    public static final short CONSOLEGP_19    = 0;
+    public static final short CONSOLEGP_20    = 0;
+    public static final short CONSOLEGP_21    = 0;
+    public static final short CONSOLEGP_22    = 0;
+    public static final short CONSOLEGP_23    = 0;
+    public static final short CONSOLEGP_24    = 0;
+    public static final short CONSOLEGP_25    = 0;
+    public static final short CONSOLEGP_26    = 0;
+    public static final short CONSOLEGP_27    = 0;
+    public static final short CONSOLEGP_28    = 0;
+}

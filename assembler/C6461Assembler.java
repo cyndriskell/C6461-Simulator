@@ -142,12 +142,16 @@ class C6461Assembler {
 			try {
 				argsv[i] = Short.parseShort(args[i]);
 			} catch (NumberFormatException e) {
-				Short label_value = labels.get(args[i]);
-				if (label_value == null) {
-					error(line, String.format("Unknown label \"%s\"", args[i]), line_num);
+				if (args[i].contains("'")) {
+					argsv[i] = (short)String.format(args[i]).charAt(1);
+				} else {
+					Short label_value = labels.get(args[i]);
+					if (label_value == null) {
+						error(line, String.format("Unknown label \"%s\"", args[i]), line_num);
+					}
+					
+					argsv[i] = label_value;
 				}
-				
-				argsv[i] = label_value;
 			}
 		}
 
@@ -219,7 +223,7 @@ class C6461Assembler {
 		// labels can only be used with instruction mnemonics not assembler directives
 
 		// regex which matches a line of assembly (dark magic!)
-		Pattern line_pattern = Pattern.compile("(?:(?:(?<label>[A-z]+[0-9]*):\\h*)?(?:(?<mnemonic>(?:[A-Z]|[a-z])+)((?:\\h+)(?<args>(?:(?:,?[0-9]|[A-z])+)+))?\\h*)?)(?:;\\h*(?<comment>.*))?");
+		Pattern line_pattern = Pattern.compile("(?:(?:(?<label>[A-z]+[0-9]*):\\h*)?(?:(?<mnemonic>(?:[A-Z]|[a-z])+)((?:\\h+)(?<args>(?:(?:,?(?:(?:-?[0-9])|[A-z]|(?:'..?')))+)+))?\\h*)?)(?:;\\h*(?<comment>.*))?");
 		Matcher line_match = line_pattern.matcher(line);
 
 		if (line_match.matches()) {
@@ -433,7 +437,7 @@ class C6461Assembler {
 	// Pass 2, assemble the program for real this time, will push each chunk of generated code to the `code` vector which will be used in the emit stage
 	static short pass2_assemble(String line, Vector<C6461AssemblerCode> code, HashMap<String, Short> labels, Short address, int line_num) {
 		// regex which matches a line of assembly (dark magic!)
-		Pattern line_pattern = Pattern.compile("(?:(?:(?<label>[A-z]+[0-9]*):\\h*)?(?:(?<mnemonic>(?:[A-Z]|[a-z])+)((?:\\h+)(?<args>(?:(?:,?[0-9]|[A-z])+)+))?\\h*)?)(?:;\\h*(?<comment>.*))?");
+		Pattern line_pattern = Pattern.compile("(?:(?:(?<label>[A-z]+[0-9]*):\\h*)?(?:(?<mnemonic>(?:[A-Z]|[a-z])+)((?:\\h+)(?<args>(?:(?:,?(?:(?:-?[0-9])|[A-z]|(?:'..?')))+)+))?\\h*)?)(?:;\\h*(?<comment>.*))?");
 		Matcher line_match = line_pattern.matcher(line);
 
 		if (line_match.matches()) {

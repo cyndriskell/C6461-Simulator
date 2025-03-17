@@ -23,9 +23,12 @@ public class C6461SimulatorGUI extends JFrame {
     private JTextField mfrField;
     private boolean running;
     private String outputFormat = "decimal";
+    private JTextField charField; // Add a new field for character input
+    private JTextArea consoleTextArea; // Add a field for the console output text area
 
     public C6461SimulatorGUI() {
         machine = new C6461SimulatorMachine();
+        machine.connectWorld(this);
         setTitle("CSCI 6461 Machine Simulator");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1200, 800);
@@ -113,7 +116,7 @@ public class C6461SimulatorGUI extends JFrame {
         bottomPanel.setBackground(new Color(217, 232, 245));
 
         bottomPanel.add(createCachePrinterPanel("Printer", 100));
-        bottomPanel.add(createConsolePanel());
+        bottomPanel.add(createConsolePanel()); // Update to use createConsolePanel
 
         mainPanel.add(bottomPanel);
 
@@ -195,6 +198,7 @@ public class C6461SimulatorGUI extends JFrame {
         panel.add(createFormRow("Binary", 120, binaryField = new JTextField(10)));
         panel.add(createFormRow("Octal", 120, octalField = new JTextField(10)));
         panel.add(createFormRow("Decimal", 120, decimalField = new JTextField(10)));
+        panel.add(createFormRow("Char", 120, charField = new JTextField(1))); // Add char input field
 
         KeyAdapter keyAdapter = new KeyAdapter() {
             @Override
@@ -256,10 +260,10 @@ public class C6461SimulatorGUI extends JFrame {
 
     private JPanel createConsolePanel() {
         JPanel panel = createStyledPanel("Console Output");
-        JTextArea ta = new JTextArea();
-        ta.setPreferredSize(new Dimension(280, 100));
-        ta.setEditable(false);
-        panel.add(new JScrollPane(ta));
+        consoleTextArea = new JTextArea(); // Initialize the console output text area
+        consoleTextArea.setPreferredSize(new Dimension(280, 100));
+        consoleTextArea.setEditable(false);
+        panel.add(new JScrollPane(consoleTextArea));
         return panel;
     }
 
@@ -290,6 +294,7 @@ public class C6461SimulatorGUI extends JFrame {
     }
 
     private class RegisterButtonClickListener implements ActionListener {
+        @SuppressWarnings("unused") // TODO: actually handle the unused var 'field'
         private final JTextField field;
         private final String label;
 
@@ -389,6 +394,8 @@ public class C6461SimulatorGUI extends JFrame {
                     break;
                 case "Run":
                     running = true;
+                    machine.mfr = 0;
+                    updateGUIFromMachine();
                     new Thread(() -> {
                         while (running) {
                             machine.step();
@@ -408,6 +415,7 @@ public class C6461SimulatorGUI extends JFrame {
                     }).start();
                     break;
                 case "Step":
+                    machine.mfr = 0;
                     machine.step();
                     updateGUIFromMachine();
                     break;
@@ -437,6 +445,37 @@ public class C6461SimulatorGUI extends JFrame {
                     break;
             }
         }
+    }
+
+    // Add a method to wait for character input
+    public char waitForCharInput() {
+        final Object lock = new Object();
+        final char[] result = new char[1];
+
+        charField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyTyped(KeyEvent e) {
+                synchronized (lock) {
+                    result[0] = e.getKeyChar();
+                    charField.setText(""); // Clear the input box
+                    lock.notify(); // Notify the waiting thread
+                }
+            }
+        });
+
+        synchronized (lock) {
+            try {
+                lock.wait(); // Wait for input
+            } catch (InterruptedException ex) {
+                ex.printStackTrace();
+            }
+        }
+
+        return result[0];
+    }   
+
+    public void printToPrinter(char data) {
+        this.consoleTextArea.append(String.format("%c", data));
     }
 
     public static void main(String[] args) {
