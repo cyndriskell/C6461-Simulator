@@ -23,8 +23,12 @@ public class C6461SimulatorGUI extends JFrame {
     private JTextField mfrField;
     private boolean running;
     private String outputFormat = "decimal";
+    private JTextField cacheHitsField;
+    private JTextField cacheMissesField;
+    private JTextField cacheHitRateField;
     private JTextField charField; // Add a new field for character input
     private JTextArea consoleTextArea; // Add a field for the console output text area
+    private JTextArea cacheContentTextArea; // Add a field for the cache content text area
 
     public C6461SimulatorGUI() {
         machine = new C6461SimulatorMachine();
@@ -74,7 +78,7 @@ public class C6461SimulatorGUI extends JFrame {
         mainPanel.add(formatPanel);
 
         // TOP
-        JPanel topPanel = new JPanel(new GridLayout(1, 4, 20, 20));
+        JPanel topPanel = new JPanel(new GridLayout(1, 5, 20, 20));
         topPanel.setBackground(new Color(217, 232, 245));
 
         gprFields = new JTextField[4];
@@ -85,6 +89,8 @@ public class C6461SimulatorGUI extends JFrame {
 
         registerFields = new JTextField[4];
         topPanel.add(createRegisterPanel("Registers", new String[]{"PC", "MAR", "MBR", "IR"}, registerFields, true));
+
+        topPanel.add(createCacheStatsPanel());
 
         topPanel.add(createCachePrinterPanel("Cache Content", 100));
 
@@ -115,8 +121,8 @@ public class C6461SimulatorGUI extends JFrame {
         JPanel bottomPanel = new JPanel(new GridLayout(1, 2, 20, 20));
         bottomPanel.setBackground(new Color(217, 232, 245));
 
-        bottomPanel.add(createCachePrinterPanel("Printer", 100));
-        bottomPanel.add(createConsolePanel()); // Update to use createConsolePanel
+        bottomPanel.add(createPrinterPanel("Printer", 100));
+        bottomPanel.add(createConsolePanel());
 
         mainPanel.add(bottomPanel);
 
@@ -168,6 +174,10 @@ public class C6461SimulatorGUI extends JFrame {
         registerFields[3].setText(formatValue(machine.ir, 16));
         ccField.setText(Integer.toBinaryString((1 << 4) | machine.cc).substring(1));
         mfrField.setText(Integer.toBinaryString((1 << 4) | machine.mfr).substring(1));
+        cacheHitsField.setText(String.valueOf(machine.memory.getCacheHits()));
+        cacheMissesField.setText(String.valueOf(machine.memory.getCacheMisses()));
+        cacheHitRateField.setText(String.format("%.2f%%", machine.memory.getCacheHitRate() * 100));
+        updateCacheContent(); // Call the new method to update the cache content
     }
 
     private String formatValue(short value, int bits) {
@@ -185,11 +195,32 @@ public class C6461SimulatorGUI extends JFrame {
 
     private JPanel createCachePrinterPanel(String title, int height) {
         JPanel panel = createStyledPanel(title);
-        JTextArea ta = new JTextArea();
-        ta.setPreferredSize(new Dimension(280, height));
-        ta.setEditable(false);
-        panel.add(new JScrollPane(ta));
+        cacheContentTextArea = new JTextArea(); // Initialize the cache content text area
+        cacheContentTextArea.setPreferredSize(new Dimension(280, height));
+        cacheContentTextArea.setEditable(false);
+        panel.add(new JScrollPane(cacheContentTextArea));
         return panel;
+    }
+
+    private JPanel createPrinterPanel(String title, int height) {
+        JPanel panel = createStyledPanel(title);
+        JTextArea printerTextArea = new JTextArea(); // Initialize the printer text area
+        printerTextArea.setPreferredSize(new Dimension(280, height));
+        printerTextArea.setEditable(false);
+        panel.add(new JScrollPane(printerTextArea));
+        return panel;
+    }
+
+    private void updateCacheContent() {
+        short[][] cacheLines = machine.memory.getCacheLines();
+        StringBuilder content = new StringBuilder();
+        for (short[] line : cacheLines) {
+            for (short value : line) {
+                content.append(formatValue(value, 16)).append(" ");
+            }
+            content.append("\n");
+        }
+        cacheContentTextArea.setText(content.toString());
     }
 
     private JPanel createInputPanel() {
@@ -261,9 +292,16 @@ public class C6461SimulatorGUI extends JFrame {
     private JPanel createConsolePanel() {
         JPanel panel = createStyledPanel("Console Output");
         consoleTextArea = new JTextArea(); // Initialize the console output text area
-        consoleTextArea.setPreferredSize(new Dimension(280, 100));
         consoleTextArea.setEditable(false);
-        panel.add(new JScrollPane(consoleTextArea));
+        consoleTextArea.setLineWrap(true); // Enable line wrapping
+        consoleTextArea.setWrapStyleWord(true); // Wrap at word boundaries
+
+        JScrollPane scrollPane = new JScrollPane(consoleTextArea); // Wrap in JScrollPane
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS); // Always show vertical scrollbar
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED); // Show horizontal scrollbar as needed
+        scrollPane.setPreferredSize(new Dimension(280, 100)); // Set preferred size for the scroll pane
+
+        panel.add(scrollPane);
         return panel;
     }
 
@@ -403,11 +441,11 @@ public class C6461SimulatorGUI extends JFrame {
                                 running = false;
                             }
                             updateGUIFromMachine();
-                            try {
-                                Thread.sleep(100); // Adjust the sleep time as needed
-                            } catch (InterruptedException ex) {
-                                ex.printStackTrace();
-                            }
+                            // try {
+                            //     Thread.sleep(1); // Adjust the sleep time as needed
+                            // } catch (InterruptedException ex) {
+                            //     ex.printStackTrace();
+                            // }
                         }
                         machine.mar = machine.pc;
                         machine.mbr = machine.memory.fetch(machine.mar);
@@ -424,6 +462,7 @@ public class C6461SimulatorGUI extends JFrame {
                     break;
                 case "IPL":
                     machine.init();
+                    consoleTextArea.setText(""); // Clear the console output
                     JFileChooser fileChooser = new JFileChooser();
                     int returnValue = fileChooser.showOpenDialog(null);
                     if (returnValue == JFileChooser.APPROVE_OPTION) {
@@ -445,6 +484,28 @@ public class C6461SimulatorGUI extends JFrame {
                     break;
             }
         }
+    }
+
+    private JPanel createCacheStatsPanel() {
+        JPanel panel = createStyledPanel("Cache Statistics");
+        panel.setLayout(new GridLayout(3, 2, 5, 5));
+
+        cacheHitsField = new JTextField(10);
+        cacheMissesField = new JTextField(10);
+        cacheHitRateField = new JTextField(10);
+        
+        cacheHitsField.setEditable(false);
+        cacheMissesField.setEditable(false);
+        cacheHitRateField.setEditable(false);
+
+        panel.add(new JLabel("Cache Hits:"));
+        panel.add(cacheHitsField);
+        panel.add(new JLabel("Cache Misses:"));
+        panel.add(cacheMissesField);
+        panel.add(new JLabel("Hit Rate:"));
+        panel.add(cacheHitRateField);
+
+        return panel;
     }
 
     // Add a method to wait for character input
@@ -475,7 +536,8 @@ public class C6461SimulatorGUI extends JFrame {
     }   
 
     public void printToPrinter(char data) {
-        this.consoleTextArea.append(String.format("%c", data));
+        consoleTextArea.append(String.format("%c", data));
+        consoleTextArea.setCaretPosition(consoleTextArea.getDocument().getLength()); // Scroll to the bottom
     }
 
     public static void main(String[] args) {

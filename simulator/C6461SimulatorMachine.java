@@ -204,7 +204,7 @@ public class C6461SimulatorMachine {
 				break; */
 			default:
 				this.mfr = C6461SimulatorMFRFlags.ILGLOP;
-				System.err.printf("WARN: Unhandled opcode: %d, code: %d\n", opcode, instruction & 0xffff);
+				System.err.printf("WARN: Unhandled opcode: %d, code: %d @ pc = %d\n", opcode, instruction & 0xffff, this.pc-1);
 				break;
 		}
 	}
@@ -243,15 +243,21 @@ public class C6461SimulatorMachine {
 	}
 
 	public void loadIndex(short _opcode, short register, short index, short indirect, short address) {
-		this.idxs[index-1] = this.memory.fetch(this.effectiveAddress(index, indirect, address));
+		this.idxs[index-1] = this.memory.fetch(this.effectiveAddress((short)0, indirect, address));
 	}
 
 	public void storeRegister(short _opcode, short register, short index, short indirect, short address) {
+		if (this.effectiveAddress(index, indirect, address) == 0) {
+			this.mfr = C6461SimulatorMFRFlags.MEMRESV;
+		}
 		this.memory.store(this.effectiveAddress(index, indirect, address), this.gprs[register]);
 	}
 
 	public void storeIndex(short _opcode, short register, short index, short indirect, short address) {
-		this.memory.store(this.effectiveAddress(index, indirect, address), this.idxs[index-1]);
+		if (this.effectiveAddress(index, indirect, address) == 0) {
+			this.mfr = C6461SimulatorMFRFlags.MEMRESV;
+		}
+		this.memory.store(this.effectiveAddress((short)0, indirect, address), this.idxs[index-1]);
 	}
 
 	public void jumpZero(short _opcode, short register, short index, short indirect, short address) {
@@ -277,7 +283,7 @@ public class C6461SimulatorMachine {
 	}
 	
 	public void jumpSubroutine(short _opcode, short register, short index, short indirect, short address) {
-		this.gprs[3] = (short)(this.pc + 1);
+		this.gprs[3] = this.pc;
 		this.pc = this.effectiveAddress(index, indirect, address);
 	}
 	
@@ -326,7 +332,7 @@ public class C6461SimulatorMachine {
 		short low  = (short)(val & 0xFFFF);
 
 		this.gprs[register_x] = high;
-		this.gprs[register_y] = low;
+		this.gprs[register_x+1] = low;
 		// Check for overflow
 	}
 
@@ -337,19 +343,21 @@ public class C6461SimulatorMachine {
 		}
 
 		int val = 0;
+		int rem = 0;
 		try {
 			val = this.gprs[register_x]/this.gprs[register_y];
+			rem = this.gprs[register_x]%this.gprs[register_y];
 		} catch (ArithmeticException e) {
 			this.cc = C6461SimulatorCCFlags.DIVDZERO;
 			// maybe dont fault here
 			this.mfr = C6461SimulatorMFRFlags.ILGLOP; 
 		}
 
-		short high = (short)(val >> 16);
-		short low  = (short)(val & 0xFFFF);
+		short high = (short)(val & 0xFFFF);
+		short low  = (short)(rem & 0xFFFF);
 
-		this.gprs[register_x] = high;
-		this.gprs[register_y] = low;
+		this.gprs[register_x]   = high;
+		this.gprs[register_x+1] = low;
 		// Check for overflow
 	}
 	
@@ -449,4 +457,5 @@ public class C6461SimulatorMachine {
 		this.mfr = 0;
 		this.memory.clear();
 	}
+
 }
