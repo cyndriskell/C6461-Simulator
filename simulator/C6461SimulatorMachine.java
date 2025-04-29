@@ -170,38 +170,41 @@ public class C6461SimulatorMachine {
 				args = C6461SimulatorMachine.getArgs(instruction, C6461SimulatorArgOffsets.OUT);
 				this.outputCharRegDev(args[0], args[1], args[2]);
 				break;
-			/* case C6461SimulatorOpcodes.CHK:
+				case C6461SimulatorOpcodes.CHK:
 				args = C6461SimulatorMachine.getArgs(instruction, C6461SimulatorArgOffsets.CHK);
-				this.funcName();
+				this.checkDeviceStatus(args[0], args[1], args[2]);
 				break;
 			case C6461SimulatorOpcodes.FADD:
 				args = C6461SimulatorMachine.getArgs(instruction, C6461SimulatorArgOffsets.FADD);
-				this.funcName();
+				this.floatAdd(args[0], args[1], args[2], args[3], args[4]);
 				break;
 			case C6461SimulatorOpcodes.FSUB:
 				args = C6461SimulatorMachine.getArgs(instruction, C6461SimulatorArgOffsets.FSUB);
-				this.funcName();
+				this.floatSub(args[0], args[1], args[2], args[3], args[4]);
 				break;
 			case C6461SimulatorOpcodes.VADD:
 				args = C6461SimulatorMachine.getArgs(instruction, C6461SimulatorArgOffsets.VADD);
-				this.funcName();
+				this.vectorAdd(args[0], args[1], args[2], args[3], args[4]);
 				break;
 			case C6461SimulatorOpcodes.VSUB:
 				args = C6461SimulatorMachine.getArgs(instruction, C6461SimulatorArgOffsets.VSUB);
-				this.funcName();
+				this.vectorSub(args[0], args[1], args[2], args[3], args[4]);
 				break;
 			case C6461SimulatorOpcodes.CNVRT:
 				args = C6461SimulatorMachine.getArgs(instruction, C6461SimulatorArgOffsets.CNVRT);
-				this.funcName();
+				this.convert(args[0], args[1], args[2], args[3], args[4]);
 				break;
+			
 			case C6461SimulatorOpcodes.LDFR:
 				args = C6461SimulatorMachine.getArgs(instruction, C6461SimulatorArgOffsets.LDFR);
-				this.funcName();
+				this.loadFloatingRegister(args[0], args[1], args[2], args[3], args[4]);
 				break;
+			
 			case C6461SimulatorOpcodes.STFR:
 				args = C6461SimulatorMachine.getArgs(instruction, C6461SimulatorArgOffsets.STFR);
-				this.funcName();
-				break; */
+				this.storeFloatingRegister(args[0], args[1], args[2], args[3], args[4]);
+				break;
+			
 			default:
 				this.mfr = C6461SimulatorMFRFlags.ILGLOP;
 				System.err.printf("WARN: Unhandled opcode: %d, code: %d @ pc = %d\n", opcode, instruction & 0xffff, this.pc-1);
@@ -432,6 +435,75 @@ public class C6461SimulatorMachine {
 			default:
 				this.mfr = C6461SimulatorMFRFlags.ILGLOP;
 		}
+	}
+
+	public void checkDeviceStatus(short _opcode, short register, short devid) {
+		boolean isReady = false;
+		switch (devid) {
+			case C6461SimulatorDevIDs.KEYBOARD:
+				isReady = this.world.keyboardIsReady;
+				break;
+			case C6461SimulatorDevIDs.PRINTER:
+				isReady = this.world.printerIsReady;
+				break;
+			default:
+				this.mfr = C6461SimulatorMFRFlags.ILGLOP;
+				return;
+		}
+		this.gprs[register] = (short)(isReady ? 1 : 0);
+	}
+	
+	public void floatAdd(short _opcode, short register, short index, short indirect, short address) {
+		int memVal = this.memory.fetch(this.effectiveAddress(index, indirect, address)) & 0xFFFF;
+		int regVal = this.gprs[register] & 0xFFFF;
+		float memFloat = (float) memVal;
+		float regFloat = (float) regVal;
+		float result = regFloat + memFloat;
+		this.gprs[register] = (short)((int)result & 0xFFFF);
+	}
+	
+	public void floatSub(short _opcode, short register, short index, short indirect, short address) {
+		int memVal = this.memory.fetch(this.effectiveAddress(index, indirect, address)) & 0xFFFF;
+		int regVal = this.gprs[register] & 0xFFFF;
+		float memFloat = (float) memVal;
+		float regFloat = (float) regVal;
+		float result = regFloat - memFloat;
+		this.gprs[register] = (short)((int)result & 0xFFFF);
+	}
+	
+	public void vectorAdd(short _opcode, short register, short index, short indirect, short address) {
+		short effectiveAddr = this.effectiveAddress(index, indirect, address);
+		int length = this.gprs[register];
+		for (int i = 0; i < length; i++) {
+			short val1 = this.memory.fetch((short)(effectiveAddr + i));
+			short val2 = this.memory.fetch((short)(effectiveAddr + length + i));
+			this.memory.store((short)(effectiveAddr + 2 * length + i), (short)(val1 + val2));
+		}
+	}
+	
+	public void vectorSub(short _opcode, short register, short index, short indirect, short address) {
+		short effectiveAddr = this.effectiveAddress(index, indirect, address);
+		int length = this.gprs[register];
+		for (int i = 0; i < length; i++) {
+			short val1 = this.memory.fetch((short)(effectiveAddr + i));
+			short val2 = this.memory.fetch((short)(effectiveAddr + length + i));
+			this.memory.store((short)(effectiveAddr + 2 * length + i), (short)(val1 - val2));
+		}
+	}
+	
+	public void convert(short _opcode, short register, short index, short indirect, short immediate) {
+		if (immediate == 0) {
+		} else if (immediate == 1) {
+		} else {
+			this.mfr = C6461SimulatorMFRFlags.ILGLOP;
+		}
+	}
+	public void loadFloatingRegister(short _opcode, short register, short index, short indirect, short address) {
+		this.gprs[register] = this.memory.fetch(this.effectiveAddress(index, indirect, address));
+	}
+
+	public void storeFloatingRegister(short _opcode, short register, short index, short indirect, short address) {
+		this.memory.store(this.effectiveAddress(index, indirect, address), this.gprs[register]);
 	}
 
 	public static short[] getArgs(short instruction, short[][] offsets) {

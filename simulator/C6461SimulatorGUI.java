@@ -22,6 +22,8 @@ public class C6461SimulatorGUI extends JFrame {
     private JTextField ccField;
     private JTextField mfrField;
     private boolean running;
+    boolean keyboardIsReady = true;
+    boolean printerIsReady = true;
     private String outputFormat = "decimal";
     private JTextField cacheHitsField;
     private JTextField cacheMissesField;
